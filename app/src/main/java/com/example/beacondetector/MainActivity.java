@@ -5,11 +5,13 @@ import androidx.core.content.ContextCompat;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
 public class MainActivity extends AppCompatActivity {
     Button btnStartService, btnStopService;
+    String TAG = "WABBLER";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,11 +35,23 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void startService() {
-        Intent serviceIntent = new Intent(this, ForegroundBLE.class);
-        ContextCompat.startForegroundService(this, serviceIntent);
+        if(PermissionsHelper.checkLocationPermission(MainActivity.this)) {
+            Log.d(TAG, "startService: permission granted");
+            Intent serviceIntent = new Intent(this, ForegroundBLE.class);
+            ContextCompat.startForegroundService(this, serviceIntent);
+        }else{
+            Log.d(TAG, "startService: permission not granted");
+            PermissionsHelper.requestLocationPermission(MainActivity.this);
+        }
     }
     public void stopService() {
-        Intent serviceIntent = new Intent(this, ForegroundBLE.class);
-        stopService(serviceIntent);
+        if(PermissionsHelper.checkLocationPermission(MainActivity.this)) {
+            Intent serviceIntent = new Intent(this, ForegroundBLE.class);
+            stopService(serviceIntent);
+        }else{
+            PermissionsHelper.requestLocationPermission(MainActivity.this);
+        }
     }
+
+
 }
