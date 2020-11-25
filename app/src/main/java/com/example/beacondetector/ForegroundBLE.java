@@ -23,6 +23,7 @@ import org.altbeacon.beacon.BeaconParser;
 import org.altbeacon.beacon.MonitorNotifier;
 import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
+import org.altbeacon.beacon.powersave.BackgroundPowerSaver;
 
 import java.util.Collection;
 
@@ -30,12 +31,15 @@ public class ForegroundBLE  extends Service implements BeaconConsumer {
 
     private static final String TAG = "WABBLER" ;
     private BeaconManager beaconManager;
+    private BackgroundPowerSaver backgroundPowerSaver;
 
     public static final String CHANNEL_ID = "ForegroundServiceChannel";
     @Override
     public void onCreate() {
         super.onCreate();
         beaconManager = BeaconManager.getInstanceForApplication(this);
+        backgroundPowerSaver = new BackgroundPowerSaver(this);
+
         // To detect proprietary beacons, you must add a line like below corresponding to your beacon
         // type.  Do a web search for "setBeaconLayout" to get the proper expression.
          beaconManager.getBeaconParsers().add(new BeaconParser().
@@ -56,6 +60,10 @@ public class ForegroundBLE  extends Service implements BeaconConsumer {
         beaconManager.enableForegroundServiceScanning(notification,1);
         beaconManager.setForegroundScanPeriod(1100);
         beaconManager.setForegroundBetweenScanPeriod(0);
+        beaconManager.setBackgroundBetweenScanPeriod(0);
+        beaconManager.setBackgroundScanPeriod(5100);
+        beaconManager.setRegionStatePersistenceEnabled(false);
+        beaconManager.setEnableScheduledScanJobs(false);
         beaconManager.bind(this);
 
         startForeground(1, notification);
