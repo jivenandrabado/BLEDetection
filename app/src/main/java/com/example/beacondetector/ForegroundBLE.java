@@ -31,11 +31,14 @@ import org.altbeacon.beacon.powersave.BackgroundPowerSaver;
 import java.util.Calendar;
 import java.util.Collection;
 
-public class ForegroundBLE  extends Service implements BeaconConsumer {
+public class ForegroundBLE  extends Service implements BeaconConsumer, MonitorNotifier {
 
     private static final String TAG = "WABBLER" ;
     private BeaconManager beaconManager;
     private BackgroundPowerSaver backgroundPowerSaver;
+    private int counter;
+    private NotificationHelper notificationHelper;
+    public static PendingIntent alarmIntent;
 
     public static final String CHANNEL_ID = "ForegroundServiceChannel";
     @Override
@@ -51,7 +54,7 @@ public class ForegroundBLE  extends Service implements BeaconConsumer {
                 setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
         beaconManager.setRegionStatePersistenceEnabled(false);
 
-
+        notificationHelper = new NotificationHelper(getApplicationContext());
 
         createNotificationChannel();
         Intent notificationIntent = new Intent(this, MainActivity.class);
@@ -75,7 +78,7 @@ public class ForegroundBLE  extends Service implements BeaconConsumer {
 
         Intent intent = new Intent(getApplicationContext(), AlarmReceiver.class);
         intent.putExtra("in", "true");
-        PendingIntent alarmIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, intent, 0);
+        alarmIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, intent, 0);
 //        AlarmManager alarmManager = (AlarmManager)getApplicationContext().getSystemService(Context.ALARM_SERVICE);
 //        alarmManager.setRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, SystemClock.elapsedRealtime() + 15 * 1000, 60*1000, alarmIntent);
 
@@ -85,6 +88,7 @@ public class ForegroundBLE  extends Service implements BeaconConsumer {
         calendar.add(Calendar.MINUTE, 15);
 
         alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), alarmIntent);
+
 
         startForeground(1, notification);
 
@@ -124,54 +128,77 @@ public class ForegroundBLE  extends Service implements BeaconConsumer {
 
     @Override
     public void onBeaconServiceConnect() {
+
+        //RangeNotifier
         RangeNotifier rangeNotifier = new RangeNotifier() {
             @Override
             public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
                 if (beacons.size() > 0) {
+                    counter++;
                     Beacon firstBeacon = beacons.iterator().next();
                     Log.d(TAG, "didRangeBeaconsInRegion called with beacon count:  "+beacons.size() + " NAME "+ firstBeacon.getBluetoothName());
 
                     Log.d(TAG, "The first beacon " + firstBeacon.toString() + " is about " + firstBeacon.getDistance() + " meters away.");
                     Toast.makeText(getApplicationContext(), "The first beacon is about " + firstBeacon.getDistance() + " meters away.", Toast.LENGTH_LONG).show();
+
+                    if(counter == 1){
+                        notificationHelper.sendHighPriorityNotification("Beacon Detector", "A beacon has been detected", MainActivity.class);
+                    }
+
+                }else{
+                    counter = 0;
                 }
             }
 
         };
-        try {
-            beaconManager.startRangingBeaconsInRegion(new Region("myRangingUniqueId", null, null, null));
-            beaconManager.addRangeNotifier(rangeNotifier);
 
-        } catch (RemoteException e) {
-            Log.d(TAG, "onBeaconServiceConnect: EXCEPTION"+ e);
-        }
-
-//        beaconManager.removeAllMonitorNotifiers();
-//        beaconManager.addMonitorNotifier(new MonitorNotifier() {
-//            @Override
-//            public void didEnterRegion(Region region) {
-//                Log.i(TAG, "I just saw an beacon for the first time!");
-//                Toast.makeText(getApplicationContext(), "I just saw a beacon for the first time!", Toast.LENGTH_LONG).show();
-//            }
-//
-//            @Override
-//            public void didExitRegion(Region region) {
-//                Log.i(TAG, "I no longer see an beacon");
-//                Toast.makeText(getApplicationContext(), "I no longer see a beacon", Toast.LENGTH_LONG).show();
-//
-//            }
-//
-//            @Override
-//            public void didDetermineStateForRegion(int state, Region region) {
-//                Log.i(TAG, "I have just switched from seeing/not seeing beacons: "+state);
-//            }
-//        });
-//
 //        try {
-//            beaconManager.startMonitoringBeaconsInRegion(new Region("myMonitoringUniqueId", null, null, null));
+//            beaconManager.startRangingBeaconsInRegion(new Region("myRangingUniqueId", null, null, null));
 //        } catch (RemoteException e) {
-//            Log.d(TAG, "onBeaconServiceConnect: "+ e);
+//            e.printStackTrace();
 //        }
+//        beaconManager.addRangeNotifier(rangeNotifier);
+
+        // MonitorNotifier
+        beaconManager.removeAllMonitorNotifiers();
+        beaconManager.addMonitorNotifier(this);
+
+        try {
+            beaconManager.startMonitoringBeaconsInRegion(new Region("myMonitoringUniqueId", null, null, null));
+        } catch (RemoteException e) {
+            Log.d(TAG, "onBeaconServiceConnect: "+ e);
+        }
 
     }
 
+    @Override
+    public void didEnterRegion(Region region) {
+        Log.i(TAG, "I just saw a beacon for the first time!");
+        notificationHelper.sendHighPriorityNotification("Beacon Detector", "A beacon has been detected", MainActivity.class);
+
+    }
+
+    @Override
+    public void didExitRegion(Region region) {
+        Log.i(TAG, "Exit beacon range");
+        notificationHelper.sendHighPriorityNotification("Beacon Detector", "Exited the beacon range", MainActivity.class);
+
+    }
+
+    @Override
+    public void didDetermineStateForRegion(int state, Region region) {
+        Log.i(TAG, "I have just switched from seeing/not seeing beacons: "+state);
+
+        switch (state){
+            case 0:
+//                notificationHelper.sendHighPriorityNotification("Beacon Detector", "You are outside the beacon range", MainActivity.class);
+                break;
+
+            case 1:
+//                notificationHelper.sendHighPriorityNotification("Beacon Detector", "You are inside the beacon range", MainActivity.class);
+                break;
+
+        }
+
+    }
 }
